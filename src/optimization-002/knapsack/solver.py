@@ -18,6 +18,9 @@ def get_best_estimate(items_sorted, capacity, selections):
 
     return value
 
+def get_an_estimate(items_sorted, capacity, selections):
+    return sum(0 if idx < len(selections) and selections[idx] == 0 else items_sorted[idx].value for idx in xrange(len(items_sorted)))
+
 class Node():
     best_value = 0
     best_selections = []
@@ -51,17 +54,19 @@ def branch_and_bound(item_count, capacity, items):
     root = Node(0, capacity, [], -1)
     stack = [root.get_right_child(), root.get_left_child()]
     while stack:
-        node = stack.pop()
+        node = max(stack, key = lambda i: i.value)
+        stack.remove(node)
+        
         if node.room < 0 or node.estimate < Node.best_value: continue
         
-        if node.value == node.estimate and node.value > Node.best_value:
+        if node.is_leaf() and node.value > Node.best_value:
             Node.best_value = node.value
             Node.best_selections = node.selections
             continue
         
         if not node.is_leaf():
-            stack.append(node.get_right_child())
             stack.append(node.get_left_child())
+            stack.append(node.get_right_child())
     
     selections = [0] * len(items)
     for idx in xrange(len(Node.best_selections)):
@@ -70,7 +75,7 @@ def branch_and_bound(item_count, capacity, items):
     output_data = str(Node.best_value) + ' ' + str(0) + '\n'
     output_data += ' '.join(map(str, selections))
     return output_data
-        
+
 
 def dynamic_programming(item_count, capacity, items):
     items.insert(0, Item(0, 0, 0, 0))
