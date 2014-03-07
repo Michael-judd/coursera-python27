@@ -7,57 +7,48 @@ Item = namedtuple("Item", ['index', 'value', 'weight', 'density'])
 def get_best_estimate(items_sorted, capacity, selections):
     value = 0
     weight = 0
-    contributions = [0] * len(items_sorted)
-    for i in items_sorted:
-        if i.index < len(selections) and selections[i.index] == 0: continue
+    for idx in xrange(len(items_sorted)):
+        if idx < len(selections) and selections[idx] == 0: continue
+        i = items_sorted[idx]
         if weight + i.weight > capacity:
-            contributions[i.index] = ((capacity - weight) * 1.0) / i.weight
-            value += i.value * contributions[i.index] 
+            value += i.value * (((capacity - weight) * 1.0) / i.weight) 
             break
         value += i.value
         weight += i.weight
-        contributions[i.index] = 1
-        
-    return value, contributions
+
+    return value
 
 class Node():
     best_value = 0
     best_selections = []
-    items = []
     capacity = 0
     items_sorted = []
     
-    def __init__(self, value, room, selections, previous_estimate, previous_contributions):
+    def __init__(self, value, room, selections, previous_estimate):
         self.value = value
         self.room = room
-        if previous_estimate != -1:
-            self.estimate, self.contributions = previous_estimate, previous_contributions
-        else:
-            self.estimate, self.contributions = get_best_estimate(Node.items_sorted, Node.capacity, selections)
+        self.estimate = previous_estimate if previous_estimate != -1 else get_best_estimate(Node.items_sorted, Node.capacity, selections)
         self.selections = selections
+        self.index = len(self.selections)
         
     def get_left_child(self):
-        index = len(self.selections)
-        item = Node.items[index]
-        return Node(self.value + item.value, self.room - item.weight, self.selections + [1], self.estimate, self.contributions)
+        item = Node.items_sorted[self.index]
+        return Node(self.value + item.value, self.room - item.weight, self.selections + [1], self.estimate)
     
     def get_right_child(self):
-        index = len(self.selections)
-        item = Node.items[index]
-        return Node(self.value, self.room, self.selections + [0], -1, None)
+        item = Node.items_sorted[self.index]
+        return Node(self.value, self.room, self.selections + [0], -1)
     
     def is_leaf(self):
-        return len(self.selections) == len(Node.items)
+        return self.index == len(Node.items_sorted)
     
-    def __repr__(self):
-        return "\n".join(["",str(self.value), str(self.room), str(self.estimate), str(self.selections), str(self.contributions), str(Node.best_selections), str(Node.best_value)])
-
 def branch_and_bound(item_count, capacity, items):
-    Node.items = items
+    Node.best_value = 0
+    Node.best_selections = []
     Node.capacity = capacity
     Node.items_sorted = sorted(items, key = lambda i: i.density, reverse = True)
     
-    root = Node(0, capacity, [], -1, None)
+    root = Node(0, capacity, [], -1)
     stack = [root.get_right_child(), root.get_left_child()]
     while stack:
         node = stack.pop()
@@ -66,20 +57,18 @@ def branch_and_bound(item_count, capacity, items):
         if node.value == node.estimate and node.value > Node.best_value:
             Node.best_value = node.value
             Node.best_selections = node.selections
-            node = None
             continue
         
         if not node.is_leaf():
             stack.append(node.get_right_child())
             stack.append(node.get_left_child())
-        
-        node = None
     
-    if len(Node.best_selections) < len(items):
-        items.extend([0] * (len(items) - len(Node.best_selections)))
+    selections = [0] * len(items)
+    for idx in xrange(len(Node.best_selections)):
+        if Node.best_selections[idx] == 1: selections[Node.items_sorted[idx].index] = 1
     
     output_data = str(Node.best_value) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, Node.best_selections))
+    output_data += ' '.join(map(str, selections))
     return output_data
         
 
