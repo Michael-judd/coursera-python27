@@ -17,18 +17,25 @@ def solve_it(input_data):
 
     solver = pywrapcp.Solver('graph-coloring')
     
-    nodes = [solver.IntVar(0, max_colours_required - 1, 'Node-%i' % i) for i in range(node_count)]
+    degrees = graph.degree()
+    node_idx_mapping = {}
+    idx = 0
+    nodes = []
+    for w in sorted(degrees, key = degrees.get, reverse = True):
+        node_idx_mapping[w] = idx
+        nodes.append(solver.IntVar(0, max_colours_required - 1, 'Node-%i' % w))
+        idx += 1
+
     max_color = solver.Max(nodes).Var() 
     
     for a, b in edges:
-        solver.Add(nodes[a] != nodes[b])
+        solver.Add(nodes[node_idx_mapping[a]] != nodes[node_idx_mapping[b]])
 
     for clique in networkx.find_cliques(graph):
-        solver.Add(solver.AllDifferent([nodes[idx] for idx in clique]))
-    
-    for idx in range(node_count):
-        solver.Add(nodes[i] <= idx)
-    
+        solver.Add(solver.AllDifferent([nodes[node_idx_mapping[idx]] for idx in clique]))
+
+    solver.Add(nodes[0] == 0)
+
     objective = solver.Minimize(max_color, 1)
 
     solution = solver.Assignment()
@@ -40,18 +47,26 @@ def solve_it(input_data):
     
     limit = solver.TimeLimit(2 * 60 * 1000)
     
-    statsvisitor = solver.StatisticsModelVisitor()
-    solver.Accept(statsvisitor, [collector, objective, limit])
+    #statsvisitor = solver.StatisticsModelVisitor()
+    #solver.Accept(statsvisitor, [collector, objective, limit])
     
     solver.Solve(db, [collector, objective, limit])
     
-    output_data = str(int(collector.Value(0, max_color)) + 1) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, [collector.Value(0, nodes[i]) for i in range(node_count)]))
+    reverse_node_idx_mapping = {}
+    for k, v in node_idx_mapping.items():
+        reverse_node_idx_mapping[v] = k
     
-    print "max_colours_required:", max_colours_required
-    print "failures:", solver.Failures()
-    print "branches:", solver.Branches()
-    print "WallTime:", solver.WallTime()
+    color_solution = [0] * node_count
+    for idx in range(node_count):
+        color_solution[reverse_node_idx_mapping[idx]] = str(collector.Value(0, nodes[idx]))
+    
+    output_data = str(int(collector.Value(0, max_color)) + 1) + ' ' + str(0) + '\n'
+    output_data += ' '.join(color_solution)
+    
+    #print "max_colours_required:", max_colours_required
+    #print "failures:", solver.Failures()
+    #print "branches:", solver.Branches()
+    #print "WallTime:", solver.WallTime()
     
     return output_data
 
