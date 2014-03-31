@@ -1,35 +1,58 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import networkx
 from ortools.constraint_solver import pywrapcp
 
 def solve_it(input_data):
-    # Modify this code to run your optimization algorithm
-
-    # parse the input
     lines = input_data.split('\n')
     node_count, edge_count = map(int, lines[0].split())
-    edges = [(map(int, line.split())) for line in lines[1:] if line]
+    edges = [map(int, line.split()) for line in lines[1:] if line]
+    
+    graph = networkx.Graph()
+    graph.add_nodes_from([idx for idx in range(node_count)])
+    graph.add_edges_from(edges)
+    
+    max_colours_required = max(graph.degree().values()) + 1
 
     solver = pywrapcp.Solver('graph-coloring')
-    nodes = [solver.IntVar(0, node_count - 1, 'Node-%i' % i) for i in range(node_count)]
+    
+    nodes = [solver.IntVar(0, max_colours_required - 1, 'Node-%i' % i) for i in range(node_count)]
+    max_color = solver.Max(nodes).Var() 
     
     for a, b in edges:
         solver.Add(nodes[a] != nodes[b])
+
+    for clique in networkx.find_cliques(graph):
+        solver.Add(solver.AllDifferent([nodes[idx] for idx in clique]))
     
+    for idx in range(node_count):
+        solver.Add(nodes[i] <= idx)
+    
+    objective = solver.Minimize(max_color, 1)
+
     solution = solver.Assignment()
     solution.Add(nodes)
+    solution.Add(max_color)
     
-    #collector = solver.AllSolutionCollector(solution)
-    collector = solver.FirstSolutionCollector(solution)
+    db = solver.Phase(nodes, solver.ASSIGN_CENTER_VALUE, solver.ASSIGN_MIN_VALUE)
+    collector = solver.LastSolutionCollector(solution)
     
-    solver.Solve(solver.Phase(nodes, solver.INT_VAR_SIMPLE, solver.ASSIGN_MIN_VALUE), [collector])
+    limit = solver.TimeLimit(2 * 60 * 1000)
     
-    qval = [collector.Value(0, nodes[i]) for i in range(node_count)]
+    statsvisitor = solver.StatisticsModelVisitor()
+    solver.Accept(statsvisitor, [collector, objective, limit])
     
-    output_data = str(len(set(qval))) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, qval))
-
+    solver.Solve(db, [collector, objective, limit])
+    
+    output_data = str(int(collector.Value(0, max_color)) + 1) + ' ' + str(0) + '\n'
+    output_data += ' '.join(map(str, [collector.Value(0, nodes[i]) for i in range(node_count)]))
+    
+    print "max_colours_required:", max_colours_required
+    print "failures:", solver.Failures()
+    print "branches:", solver.Branches()
+    print "WallTime:", solver.WallTime()
+    
     return output_data
 
 
